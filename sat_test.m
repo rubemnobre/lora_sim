@@ -1,4 +1,5 @@
 SF = 10;
+LDRO = false;
 B = 125000;
 GB = 128000;
 OSR = 2;
@@ -11,23 +12,22 @@ CENTER_FREQ = 915e6;
 N_SAMPLES = N_SYMBOLS*2^SF*OSR;
 ELEVATION = -5*pi/180;
 N_RUNS = 10;
-N_PAR = 1000;
+N_PAR = 500;
 
-n_snrs = 5;n_elevs = 3;
-elevs = [ -20*pi/180, -20*pi/180, -20*pi/180, -20*pi/180, -20*pi/180, ...
-           -5*pi/180,  -5*pi/180,  -5*pi/180,  -5*pi/180,  -5*pi/180, ...
-                   0,          0,          0,          0,          0];
+elevs = [0, 45*pi/180, 89.9*pi/180];
+snrs = linspace(-12, -9, 5) - 3*(SF - 7);
+% elevs = [89.8*pi/180,];
+% snrs = [-12, -10.5, -9] - 3*(SF - 7);
+configs = combinations(elevs, snrs);
+basic_bers = zeros(1, height(configs));
+basic_sers = zeros(1, height(configs));
+observer_bers = zeros(1, height(configs));
+observer_sers = zeros(1, height(configs));
 
-snrs = [-15, -13.5, -12, -10.5, -9, -15, -13.5, -12, -10.5, -9, -15, -13.5, -12, -10.5, -9] - 3*(SF - 7);
-basic_bers = zeros(1, length(elevs));
-basic_sers = zeros(1, length(elevs));
-observer_bers = zeros(1, length(elevs));
-observer_sers = zeros(1, length(elevs));
-
-for j=1:length(elevs)
-    fprintf("config %d/%d\n", j, length(elevs));
-    elev = elevs(j);
-    snr = snrs(j);
+for j=1:height(configs)
+    fprintf("config %d/%d\n", j, height(configs));
+    elev = configs(j, :).elevs;
+    snr = configs(j, :).snrs;
     shifts = satellite_shifts(ALTITUDE, CENTER_FREQ, elev, B*OSR, N_SAMPLES);
     initial_shift = shifts(1);
     initial_rate = (shifts(11) - shifts(1))*(10*B*OSR);
@@ -39,7 +39,7 @@ for j=1:length(elevs)
     basic_diffs = zeros(N_PAR, N_RUNS, N_SYMBOLS);
     observer_diffs = zeros(N_PAR, N_RUNS, N_SYMBOLS);
     
-    [sequence, symbols] = generate_symbol_sequence(N_SYMBOLS, SF, B, OSR);
+    [sequence, symbols] = generate_symbol_sequence(N_SYMBOLS, SF, B, OSR, LDRO);
     
     for k = 1:N_RUNS
         parfor i = 1:N_PAR
@@ -47,9 +47,9 @@ for j=1:length(elevs)
             sequence_shifted = shift(sequence, shifts, B*OSR) + noise;
             flt_out = filter(Hd, 1, [sequence_shifted zeros(1, filter_delay)]);
             sequence_shifted_flt = flt_out(filter_delay+1:end);
-            
-            basic_out = basic_decider(sequence_shifted_flt, SF, B, OSR, initial_shift, initial_rate);
-            observer_out = shift_observer_decider(sequence_shifted_flt, SF, B, OSR, initial_shift, initial_rate);
+            % fprintf("%d\n", symbols(1));
+            basic_out = basic_decider(sequence_shifted_flt, SF, B, OSR, LDRO, initial_shift, initial_rate);
+            observer_out = shift_observer2_decider(sequence_shifted_flt, SF, B, OSR, LDRO, initial_shift, initial_rate);
             basic_diffs(i, k, :) = abs(symbols - basic_out);
             observer_diffs(i, k, :) = abs(symbols - observer_out);
         end
@@ -74,22 +74,38 @@ end
 
 clf;
 hold on;
-ylim([1e-3, 1]);
-basic_sers = reshape(basic_sers, n_snrs, n_elevs)';
-basic_bers = reshape(basic_bers, n_snrs, n_elevs)';
-snrs = reshape(snrs, n_snrs, n_elevs)';
-elevs = reshape(elevs, n_snrs, n_elevs)';
-for i=1:n_elevs
-    t = sprintf("Basic - Initial Elev. = %.1f °", elevs(i, 1)*180/pi);
-    semilogy(snrs(i,:), basic_sers(i, :), "DisplayName", t);
+ylim([1e-4, 1]);
+
+for i=1:length(elevs)
+    basic_sers_r = zeros(1, length(snrs));
+    snrs_r = zeros(1, length(snrs));
+    k = 1;
+    for j=1:height(configs)
+        if configs(j, :).elevs == elevs(i)
+            snrs_r(k) = configs(j, :).snrs;
+            basic_sers_r(k) = basic_sers(j);
+            k = k + 1;
+        end
+    end
+    t = sprintf("Basic - Initial Elev. = %.1f °", elevs(i)*180/pi);
+    semilogy(snrs, basic_sers_r, "DisplayName", t);
 end
 
-observer_sers = reshape(observer_sers, n_snrs, n_elevs)';
-observer_bers = reshape(observer_bers, n_snrs, n_elevs)';
-for i=1:n_elevs
-    t = sprintf("Observer - Initial Elev. = %.1f °", elevs(i, 1)*180/pi);
-    semilogy(snrs(i,:), observer_sers(i, :), "DisplayName", t);
+for i=1:length(elevs)
+    observer_sers_r = zeros(1, length(snrs));
+    snrs_r = zeros(1, length(snrs));
+    k = 1;
+    for j=1:height(configs)
+        if configs(j, :).elevs == elevs(i)
+            snrs_r(k) = configs(j, :).snrs;
+            observer_sers_r(k) = observer_sers(j);
+            k = k + 1;
+        end
+    end
+    t = sprintf("Observer - Initial Elev. = %.1f °", elevs(i)*180/pi);
+    semilogy(snrs, observer_sers_r, "DisplayName", t);
 end
+
 set(gca, 'YScale', 'log');
 legend();
 grid();
@@ -99,3 +115,4 @@ t = sprintf("Satellite Altitude = %.0f km; Center Frequency = %.0f MHz; \nSF=%d;
 title(t);
 saveas(gcf(), "sat_test.png", "png");
 hold off;
+save;

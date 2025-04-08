@@ -1,4 +1,4 @@
-function [shifts, thetas] = satellite_shifts(altitude, center_freq, init_elev, fs, n)
+function shifts = satellite_shifts(altitude, center_freq, init_elev, fs, n)
     % Valid for overhead passes and circular orbits, does not consider
     % earth rotation
 
@@ -10,13 +10,14 @@ function [shifts, thetas] = satellite_shifts(altitude, center_freq, init_elev, f
     rs = RE + altitude;         % Satellite orbit radius
     op = 2*pi*sqrt(rs^3/(G*M)); % Satellite orbital period
     ws = 2*pi/op;               % Satellite angular velocity
-    final_elev = init_elev + ws*n/fs;
 
-    thetas = linspace(init_elev, final_elev, n+1);
+    initial_a = acos((RE - RE*sin(init_elev)^2 + sin(init_elev)*(rs^2 + RE^2*sin(init_elev)^2 - RE^2)^(1/2))/rs);
+    final_a = initial_a - ws*n/fs;
+
+    thetas = linspace(initial_a, final_a, n+1);
     ranges = sqrt(rs^2 + RE^2 - 2*rs*RE*cos(thetas));  % Slant range equation
     velocities = diff(ranges)*fs;
 
     beta = velocities/C;
     shifts = center_freq*sqrt((1 - beta)./(1 + beta)) - center_freq; % Relativistic doppler effect
-    thetas = thetas(2:end);
 end
