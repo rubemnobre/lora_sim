@@ -22,17 +22,18 @@ function symbols = shift_observer2_decider(sequence, SF, B, OSR, LDRO, initial_s
 
         [~, maxind] = max(downsample(circshift(fftres, round(shift_comp*ZP)), ZP));
         s = maxind - 1;
+        
+        [~, maxind_zp] = max(fftres);
+        s_zp = (maxind_zp - 1)/ZP + shift_comp;
 
         if LDRO == true
             symbols(i) = mod(round(s/4), 2^(SF-2));
+            x_int1 = (round(s_zp/4) - s_zp/4)*4;
         else
             symbols(i) = mod(round(s), 2^SF);
+            x_int1 = (round(s_zp) - s_zp);
         end
 
-        [~, maxind_zp] = max(fftres);
-        s_zp = (maxind_zp - 1)/ZP + shift_comp;
-        
-        x_int1 = round(s_zp) - s_zp;
         y_int1 = x_int1 + y_int1_1;
         y_int1_1 = y_int1;
         
