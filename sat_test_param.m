@@ -10,8 +10,9 @@ function [errors, total_symbols] = sat_test_param(decider, ELEV, SNR, SF, LDRO, 
     N_SAMPLES = N_SYMBOLS*2^SF*OSR;
     N_RUNS = 2000;
     N_PAR = 100;
-    N_ERR = 100;
-    CONV = 0.01;
+    N_ERR = 50;
+    CONV = 0.1;
+    MIN_SER = 1e-4;
 
     Hd_filter = filter_design(B, OSR, GB);
     Hd = Hd_filter.Numerator;
@@ -45,6 +46,10 @@ function [errors, total_symbols] = sat_test_param(decider, ELEV, SNR, SF, LDRO, 
         ci_rw_log = abs((log(ci(2)) - log(ci(1)))/log(ser));
         fprintf("errors = %d; ser = %f; ci w = %f; ci_rw_log = %f\n", errors, ser, ci(2) - ci(1), ci_rw_log);
         if errors > N_ERR && ci_rw_log < CONV
+            break;
+        end
+        if total_symbols > 20/MIN_SER && (ci(2) < MIN_SER || errors == 0)
+            fprintf("SER CI upper bound lower than %f, skipping\n", MIN_SER);
             break;
         end
     end

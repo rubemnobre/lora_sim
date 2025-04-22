@@ -1,3 +1,5 @@
+addpath("base_functions\");addpath("decider_algorithms\");
+
 SF = 12;
 LDRO = true;
 B = 125000;
@@ -10,7 +12,7 @@ T = N_SYMBOLS*Ts;
 ALTITUDE = 500e3;
 CENTER_FREQ = 915e6;
 N_SAMPLES = N_SYMBOLS*2^SF*OSR;
-ELEVATION = 90*pi/180;
+ELEVATION = 0*pi/180;
 N_RUNS = 20;
 N_PAR = 1000;
 
@@ -41,7 +43,7 @@ shifts_ds = downsample(shifts, 2^SF*OSR);
 shifts_out = (-shift_comps/2 + -shift_comps(1)/2)*B/2^SF; %% formula is kind of ad-hoc
 plot(shifts_ds, "DisplayName", "Doppler Shift");
 plot(shifts_out, "DisplayName", "Observer Compensation");
-xlabel("Sample");
+xlabel("Symbol");
 ylabel("Frequency (Hz)");
 hold off;
 legend();
@@ -50,13 +52,13 @@ subplot(212);
 hold on;
 plot(0.5*res*B/2^SF, "DisplayName", "Estimated Residue");
 plot(shifts_out - shifts_ds, "DisplayName", "Actual Residue");
-xlabel("Sample");
+xlabel("Symbol");
 ylabel("Frequency (Hz)");
 hold off;
 legend();
 grid();
 
-t = sprintf("Satellite Altitude = %.0f km; Center Frequency = %.0f MHz; \nSF = %d; Symbols/Packet=%d; BW = %.0f kHz; SNR = %d dB", ALTITUDE/1e3, CENTER_FREQ/1e6, SF, N_SYMBOLS, B/1e3, SNR);
+t = sprintf("Satellite Altitude = %.0f km; Center Frequency = %.0f MHz; \nSF = %d; Elevation = %.1f deg; BW = %.0f kHz; SNR = %d dB", ALTITUDE/1e3, CENTER_FREQ/1e6, SF, ELEVATION*180/pi, B/1e3, SNR);
 sgtitle(t);
 
 if LDRO == true
@@ -64,6 +66,6 @@ if LDRO == true
 else
     ldro_str = "";
 end
-t = sprintf("residue_%d_%d_%d_%s", round(CENTER_FREQ/1e6), SF, SNR, ldro_str);
+t = sprintf("residue_%d_%d_%d_%d_%s", round(CENTER_FREQ/1e6), ELEVATION*180/pi, SF, SNR, ldro_str);
 saveas(gcf(), t + ".png", "png");
 save(t + ".mat");
