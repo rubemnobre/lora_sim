@@ -1,16 +1,16 @@
 SF = 12;
-LDRO = false;
+LDRO = true;
 B = 125000;
 GB = 128000;
 OSR = 2;
-SNR = -27;
-N_SYMBOLS = 10;
+SNR = -24;
+N_SYMBOLS = 50;
 Ts = 2^SF/B;
 T = N_SYMBOLS*Ts;
 ALTITUDE = 500e3;
-CENTER_FREQ = 0;
+CENTER_FREQ = 915e6;
 N_SAMPLES = N_SYMBOLS*2^SF*OSR;
-ELEVATION = -20*pi/180;
+ELEVATION = 90*pi/180;
 N_RUNS = 20;
 N_PAR = 1000;
 
@@ -33,5 +33,37 @@ sequence_shifted_flt = flt_out(filter_delay+1:end);
 
 r = initial_rate/(B/(Ts*2^SF));
 
-out = basic_decider(sequence_shifted_flt, SF, B, OSR, LDRO, initial_shift, initial_rate);
-(abs(sign(out - symbols)))
+[out, shift_comps, res] = shift_observer2_decider(sequence_shifted_flt, SF, B, OSR, LDRO, initial_shift, initial_rate);
+clf();
+subplot(211);
+hold on;
+shifts_ds = downsample(shifts, 2^SF*OSR);
+shifts_out = (-shift_comps/2 + -shift_comps(1)/2)*B/2^SF; %% formula is kind of ad-hoc
+plot(shifts_ds, "DisplayName", "Doppler Shift");
+plot(shifts_out, "DisplayName", "Observer Compensation");
+xlabel("Sample");
+ylabel("Frequency (Hz)");
+hold off;
+legend();
+grid();
+subplot(212);
+hold on;
+plot(0.5*res*B/2^SF, "DisplayName", "Estimated Residue");
+plot(shifts_out - shifts_ds, "DisplayName", "Actual Residue");
+xlabel("Sample");
+ylabel("Frequency (Hz)");
+hold off;
+legend();
+grid();
+
+t = sprintf("Satellite Altitude = %.0f km; Center Frequency = %.0f MHz; \nSF = %d; Symbols/Packet=%d; BW = %.0f kHz; SNR = %d dB", ALTITUDE/1e3, CENTER_FREQ/1e6, SF, N_SYMBOLS, B/1e3, SNR);
+sgtitle(t);
+
+if LDRO == true
+    ldro_str = "ldro";
+else
+    ldro_str = "";
+end
+t = sprintf("residue_%d_%d_%d_%s", round(CENTER_FREQ/1e6), SF, SNR, ldro_str);
+saveas(gcf(), t + ".png", "png");
+save(t + ".mat");

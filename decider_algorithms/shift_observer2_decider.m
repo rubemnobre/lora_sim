@@ -1,4 +1,4 @@
-function symbols = shift_observer2_decider(sequence, SF, B, OSR, LDRO, initial_shift, initial_rate)
+function [symbols, shift_comps, res] = shift_observer2_decider(sequence, SF, B, OSR, LDRO, initial_shift, initial_rate)
     % initial shift in Hz, initial rate in Hz/second
     kp = 0.3; ki = 0.1; c = 1;
 
@@ -9,6 +9,8 @@ function symbols = shift_observer2_decider(sequence, SF, B, OSR, LDRO, initial_s
     dc = downchirp(SF, B, 1);
     
     shift_comp = -initial_shift*2^SF/B;
+    shift_comps = zeros(1, n_symbols);
+    res = zeros(1, n_symbols);
         
     y_int1_1 = 0;
 
@@ -41,6 +43,8 @@ function symbols = shift_observer2_decider(sequence, SF, B, OSR, LDRO, initial_s
         y_int2 = c*x_int2 + y_int2_1;
         y_int2_1 = y_int2;
 
+        res(i) = x_int1;
+        shift_comps(i) = shift_comp;
         shift_comp = y_int2;
     end
 end
