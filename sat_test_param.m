@@ -11,7 +11,7 @@ function [errors, total_symbols] = sat_test_param(decider, ELEV, SNR, SF, LDRO, 
     N_RUNS = 2000;
     N_PAR = 100;
     N_ERR = 50;
-    CONV = 0.1;
+    CONV = 0.01;
     MIN_SER = 1e-4;
 
     Hd_filter = filter_design(B, OSR, GB);
@@ -48,7 +48,7 @@ function [errors, total_symbols] = sat_test_param(decider, ELEV, SNR, SF, LDRO, 
         if errors > N_ERR && ci_rw_log < CONV
             break;
         end
-        if total_symbols > 20/MIN_SER && (ci(2) < MIN_SER || errors == 0)
+        if total_symbols > 10/MIN_SER && (ci(2) < MIN_SER || errors == 0)
             fprintf("SER CI upper bound lower than %f, skipping\n", MIN_SER);
             break;
         end
