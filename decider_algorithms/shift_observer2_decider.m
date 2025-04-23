@@ -2,7 +2,7 @@ function [symbols, shift_comps, res] = shift_observer2_decider(sequence, SF, B, 
     % initial shift in Hz, initial rate in Hz/second
     kp = 0.3; ki = 0.1; c = 1;
 
-    ZP = 32;
+    ZP = 8;
     symbol_len = (2^SF*OSR);
     n_symbols = length(sequence)/symbol_len;
     symbols = zeros(1, n_symbols);
