@@ -15,7 +15,7 @@ function fill_table_param(decider, sf, ldro, snrs, elevs, freqs, path)
     for j=1:height(configs)
         t = readtable(path);
         elev = configs.elevs(j);
-        snr = configs.snrs(j) - 3*(sf-7);
+        snr = configs.snrs(j);
         freq = configs.freqs(j);
         fprintf("%s - running config %d/%d. elev = %f; snr = %f, sf = %d, ldro = %d, freq = %f\n", path, j, height(configs), elev, snr, sf, ldro, freq);
         if height(t) == 0
