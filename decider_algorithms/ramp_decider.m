@@ -1,19 +1,10 @@
-function [symbols, shift_comps, res] = shift_observer2_decider(sequence, SF, B, OSR, LDRO, initial_shift, preamble_present)
+function [symbols, shift_comps] = ramp_decider(sequence, SF, B, OSR, LDRO, initial_shift, preamble_present)
     % initial shift in Hz, initial rate in Hz/second
-
+    SW = 52;
+    N = 10;
     if LDRO==true
-        kp_pre = 0.4;
-        ki_pre = 0.04;
-
-        kp = 0.4;
-        ki = 0.04;
         ZP = 2;
     else
-        kp_pre = 0.1;
-        ki_pre = 0.01;
-        
-        kp = 0.1;
-        ki = 0.01;
         ZP = 8;
     end
 
@@ -32,18 +23,19 @@ function [symbols, shift_comps, res] = shift_observer2_decider(sequence, SF, B, 
         shift_comp = 0.25*initial_shift*2^SF/B;
     end
     shift_comps = zeros(1, n_symbols);
-    res = zeros(1, n_symbols);
-    rates = zeros(1, n_symbols);
-        
-    y_int1_1 = 0;
-    y_int2_1 = shift_comp;
+
     offset = 0;
 
-    % Run loop on the upchirps 2 to 10 of the preamble
+    % Run loop on the 8 upchirps of the preamble
     if preamble_present
         offset = round(symbol_len*12.25);
-        
-        for i=2:10
+        expected = zeros(1, 10);
+        s1 = bitshift(SW, -4)*8;
+        s2 = bitand(SW, 0xF)*8;
+        expected(9) = s1;
+        expected(10) = s2;
+        vals = zeros(1, 10);
+        for i=1:10
             symbol_ds = downsample(sequence((i-1)*symbol_len+1:i*symbol_len), OSR);
             dechirped = symbol_ds.*dc;
             dechirped_zp = [dechirped zeros(1, (ZP - 1)*length(dechirped))];
@@ -53,37 +45,46 @@ function [symbols, shift_comps, res] = shift_observer2_decider(sequence, SF, B, 
             else
                 sc = myround(-shift_comp*4*ZP);
             end
-    
             fftres = abs(fft(dechirped_zp));
     
             [~, maxind_zp] = max(fftres);
             s_zp = (maxind_zp + sc - 1)/ZP;
             
             if LDRO == true
-                x_int1 = (s_zp/4 - myround(s_zp/4));
-                if x_int1 > 2^SF/8
-                    x_int1 = x_int1 - 2^SF/4;
+                s = (s_zp/4 - expected(i)/4);
+                if s > 2^SF/8
+                    s = s - 2^SF/4;
                 end
             else
-                x_int1 = (s_zp - myround(s_zp));
-                if x_int1 > 2^SF/2
-                    x_int1 = x_int1 - 2^SF;
+                s = (s_zp - expected(i));
+                if s > 2^SF/2
+                    s = s - 2^SF;
                 end
             end
-            y_int1 = ki_pre*x_int1 + y_int1_1;
-            y_int1_1 = y_int1;
-            
-            x_int2 = y_int1 + kp_pre*x_int1;
-            y_int2 = x_int2 + y_int2_1;
-            y_int2_1 = y_int2;
-
-            shift_comp = y_int2;
+            vals(i) = s;
         end
-        y_int2 = x_int2*2.25 + y_int2_1;
-        y_int2_1 = y_int2;
-        shift_comp = y_int2;
+        last_val = vals(1);
+        last_idx = 1;
+        idx = 2;
+        rates = zeros(1,0);
+        while idx < 10
+            if vals(idx) <= 4 && vals(idx) >= -4
+                rates = [rates (vals(idx) - last_val)/(idx - last_idx)];
+                last_val = vals(idx);
+                last_idx = idx;
+            end
+            idx = idx + 1;
+        end
+        if isempty(rates)
+            rate_est = 0;
+        else
+            rate_est = mean(rates);
+        end
+        shift_comp = shift_comp + rate_est*12.25;
     end
-
+    
+    vals = zeros(1, N);
+    vi = 1;
     for i=1:n_symbols
         symbol_ds = downsample(sequence((i-1)*symbol_len+1+offset:i*symbol_len+offset), OSR);
         dechirped = symbol_ds.*dc;
@@ -102,22 +103,20 @@ function [symbols, shift_comps, res] = shift_observer2_decider(sequence, SF, B, 
 
         if LDRO == true
             symbols(i) = mod(myround(s_zp/4), 2^(SF-2));
-            x_int1 = (s_zp/4 - myround(s_zp/4));
+            vals(vi) = (s_zp/4) - myround(s_zp/4);
         else
             symbols(i) = mod(myround(s_zp), 2^SF);
-            x_int1 = (s_zp - myround(s_zp));
+            vals(vi) = (s_zp) - myround(s_zp);
         end
 
-        y_int1 = ki*x_int1 + y_int1_1;
-        y_int1_1 = y_int1;
-        
-        x_int2 = y_int1 + kp*x_int1;
-        y_int2 = x_int2 + y_int2_1;
-        y_int2_1 = y_int2;
-    
-        rates(i) = y_int1;
-        res(i) = x_int1;
+        if vi == N
+            delta_rate = mean(diff(vals));
+            rate_est = rate_est + delta_rate;
+            vi = 1;
+        end
+   
         shift_comps(i) = shift_comp;
-        shift_comp = y_int2;
+        shift_comp = shift_comp + rate_est;
+        vi = vi + 1;
     end
 end

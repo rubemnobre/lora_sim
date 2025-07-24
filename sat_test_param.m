@@ -6,11 +6,11 @@ function [errors, total_symbols] = sat_test_param(decider, ELEV, SNR, SF, LDRO, 
     Ts = 2^SF/B;
     T = N_SYMBOLS*Ts;
     ALTITUDE = 500e3;
-    N_SAMPLES = N_SYMBOLS*2^SF*OSR;
+    N_SAMPLES = round((N_SYMBOLS + 12.25)*2^SF*OSR);
     N_RUNS = 2000;
     N_PAR = 100;
     N_ERR = 50;
-    CONV = 0.01;
+    CONV = 0.02;
     MIN_SER = 1e-3;
 
     Hd_filter = filter_design(B, OSR, GB);
@@ -22,7 +22,7 @@ function [errors, total_symbols] = sat_test_param(decider, ELEV, SNR, SF, LDRO, 
     fprintf("running elevation %f deg; snr %f\n", ELEV*180/pi, SNR);
     shifts = satellite_shifts(ALTITUDE, CENTER_FREQ, ELEV, B*OSR, N_SAMPLES);
     initial_shift = shifts(1);
-    initial_rate = (shifts(11) - shifts(1))*(10*B*OSR);
+    preamble = generate_preamble(SF, B, OSR, 8, 52);
     
     errors = 0;
     total_symbols = 0;
@@ -30,11 +30,12 @@ function [errors, total_symbols] = sat_test_param(decider, ELEV, SNR, SF, LDRO, 
         fprintf("run %d/%d\n", j, N_RUNS)
         parfor k=1:N_PAR
             [sequence, symbols] = generate_symbol_sequence(N_SYMBOLS, SF, B, OSR, LDRO);
+            sequence = [preamble sequence];
             noise = (sqrt(OSR)/sqrt(2))*randn(1, N_SAMPLES)*10^(-SNR/20) + (sqrt(OSR)*1j/sqrt(2))*randn(1, N_SAMPLES)*10^(-SNR/20);
             sequence_shifted = shiftfun(sequence, shifts, B*OSR) + noise;
             flt_out = filter(Hd, 1, [sequence_shifted zeros(1, filter_delay)]);
             sequence_flt = flt_out(filter_delay+1:end);
-            out = decider(sequence_flt, SF, B, OSR, LDRO, initial_shift, initial_rate);
+            out = decider(sequence_flt, SF, B, OSR, LDRO, initial_shift, true);
             basic_diffs(k, :) = abs(symbols - out);
         end
         errors = errors + sum(sign(results(basic_diffs, SF, LDRO)));
